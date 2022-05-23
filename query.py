@@ -63,3 +63,21 @@ df_selected_site = query[(query.organization.isin(selected_site)) & (query.query
 st.header('Display Query Stats of Selected Site(s)')
 st.write('Data Dimension: ' + str(df_selected_site.shape[0]) + ' rows and ' + str(df_selected_site.shape[1]) + ' columns.')
 st.dataframe(df_selected_site)
+
+# Heatmap
+if st.button('Intercorrelation Heatmap'):
+    st.header('Intercorrelation Matrix Heatmap')
+    df_selected_site.to_csv('output.csv',index=False)
+    df = pd.read_csv('output.csv')
+
+    corr = df.corr()
+    mask = np.zeros_like(corr)
+    mask[np.triu_indices_from(mask)] = True
+    with sns.axes_style("white"):
+        fig, ax = plt.subplots(figsize=(7, 5))
+        ax = sns.heatmap(corr, mask=mask, vmax=1, square=True)
+    st.pyplot(fig)
+
+# Dashboard
+
+
