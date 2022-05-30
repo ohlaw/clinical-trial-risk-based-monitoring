@@ -5,6 +5,15 @@ import base64
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+#import plost
+import plotly.express as px
+import datetime
+
+# Page setting
+st.set_page_config(layout="wide")
+
+with open('style.css') as f:
+    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
 st.title('Risk-based Monitoring System')
 
@@ -15,13 +24,12 @@ This app performs simple risk monitoring for clinical trial!
 """)
 
 # load data
-query = pd.read_excel(r"QueryManagerExport.xlsx")
+def load_data():
+    df = pd.read_excel(r"QueryManagerExport.xlsx") 
+    df.columns = [x.lower() for x in df.columns]  # make the columns names to lower case
 
-# make the columns names to lower case
-query.columns = [x.lower() for x in query.columns]
-
-# rename column names
-query = query.rename({'query id':'query_id',
+    # rename column names
+    df = df.rename({'query id':'query_id',
                       'description':'query_description', 
                       'trial acronym':'trial', 
                       'organization':'organization',
@@ -41,43 +49,120 @@ query = query.rename({'query id':'query_id',
                       'last update time [utc]':'last_update_time',
                       'last updated by':'last_updated_by',
                       'query type':'query_type'}, axis=1)
+    
+    df['creation_time'] = df['creation_time'].astype('datetime64[s]')
+    df['last_update_time'] = df['last_update_time'].astype('datetime64[s]')
+    
+    # adding event_date column
+    df['creation_date'] = pd.to_datetime(df['creation_time'].apply(lambda x: x.strftime('%Y-%m-%d')))
+    df['creation_month'] = pd.to_datetime(df['creation_time'].apply(lambda x: x.strftime('%Y-%m')))
 
-query['creation_time'] = query['creation_time'].astype('datetime64[s]')
-query['last_update_time'] = query['last_update_time'].astype('datetime64[s]')
+    return df
 
-# adding event_date column
-query['creation_date'] = pd.to_datetime(query['creation_time'].apply(lambda x: x.strftime('%Y-%m-%d')))
-query['creation_month'] = pd.to_datetime(query['creation_time'].apply(lambda x: x.strftime('%Y-%m')))
 
-# Sidebar - Site selection
-sorted_unique_site = sorted(query.organization.unique())
-selected_site = st.sidebar.multiselect('Site', sorted_unique_site, sorted_unique_site)
+# Sidebar - Date selection
+def df_filter(message, df):
 
-# Sidebar - Status selection
-unique_status = sorted(query.query_status.unique())
-selected_status = st.sidebar.multiselect('Status', unique_status, unique_status)
+    slider_1, slider_2 = st.sidebar.date_input('%s' % (message), [df['creation_date'].min(), df['creation_date'].max()])
 
-# Filtering data
-df_selected_site = query[(query.organization.isin(selected_site)) & (query.query_status.isin(selected_status))]
+    st.info('Start: **%s** End: **%s**' % (slider_1, slider_2))
 
-st.header('Display Query Stats of Selected Site(s)')
-st.write('Data Dimension: ' + str(df_selected_site.shape[0]) + ' rows and ' + str(df_selected_site.shape[1]) + ' columns.')
-st.dataframe(df_selected_site)
+    start_date = datetime.datetime.strptime(str(slider_1), '%Y-%m-%d')
+    end_date = (datetime.datetime.strptime(str(slider_2), '%Y-%m-%d')) + datetime.timedelta(days=1)
 
-# Heatmap
-if st.button('Intercorrelation Heatmap'):
-    st.header('Intercorrelation Matrix Heatmap')
-    df_selected_site.to_csv('output.csv',index=False)
+    delta = end_date - start_date   # returns timedelta
+
+    selected_date = []
+
+    for i in range(delta.days + 1):
+        day = start_date + datetime.timedelta(days=i)
+        selected_date.append(day)
+        
+    
+
+    # Sidebar - Site selection
+    sorted_unique_site = sorted(df.organization.unique())
+    selected_site = st.sidebar.multiselect('Site', sorted_unique_site, sorted_unique_site)
+
+    # Sidebar - Status selection
+    unique_status = sorted(df.query_status.unique())
+    selected_status = st.sidebar.multiselect('Status', unique_status, unique_status)
+
+    # Filtering data
+    filtered_df = df[(df.creation_date.isin(selected_date)) & (df.organization.isin(selected_site)) & (df.query_status.isin(selected_status))]
+
+    return filtered_df
+
+
+if __name__ == '__main__':
+
+    df = load_data()
+    selected_df = df_filter('Move slider to filter dataframe', df)
+    
+    st.header('Display Query Stats of Selected Site(s)')
+    st.write('Data Dimension: ' + str(selected_df.shape[0]) + ' rows and ' + str(selected_df.shape[1]) + ' columns.')
+    st.dataframe(selected_df)
+
+    selected_df.to_csv('output.csv', index=False)
     df = pd.read_csv('output.csv')
 
-    corr = df.corr()
-    mask = np.zeros_like(corr)
-    mask[np.triu_indices_from(mask)] = True
-    with sns.axes_style("white"):
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax = sns.heatmap(corr, mask=mask, vmax=1, square=True)
+    # Create three columns
+    col1,col2,col3 = st.beta_columns(3)
+
+    with col1:
+        st.header("A cat")
+
+    with col2:
+        st.header("A dog")
+
+    with col3:
+        st.header("An owl")
+
+
+
+
+
+
+
+
+
+
+# Number of query per site
+if st.button('Number of query per site'):
+    st.header('Sites And Their Frequency of Query')
+    
+
+    query_per_site = df.groupby('organization')['query_id'].nunique().sort_values(ascending=False).reset_index()
+
+    fig, ax = plt.subplots(figsize=(18,8))
+    ax = sns.barplot(data=query_per_site, x='query_id', y='organization')
+    plt.title('Sites And Their Frequency Of Query', size=20)
+    plt.ylabel('Organization', size=13)
+    plt.xlabel('Number of Query', size=13)
     st.pyplot(fig)
 
-# Dashboard
+# Top 10 Organization By Number of Query
+if st.button('Top 10 Sites'):
+    st.header('Top 10 Organization By Number of Query')
+
+    top_organization = df['organization'].head(10)
+
+    # create dataframe for the top 10 platforms
+    top_org = df[df['organization'].isin(top_organization)]
+
+    # Calculate the proportions of the shares of the chains of each of the establishment
+    top_org['proportion'] = ((top_org['query_id'] * 100) / 
+                                   df['query_id'].sum()).round(1)
+
+    top_org = top_org.sort_values(by='proportion', ascending=False)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax = sns.barplot(x="organization", y="proportion", data=top_org)
+    plt.title('Top 10 Organization by Number of Query', size=15)
+    plt.xlabel("Name of Organization", size=13)
+    plt.xticks(rotation=70)
+    plt.ylabel('Proportion (100%)', size=13)
+    st.pyplot(fig)
+
 
 
