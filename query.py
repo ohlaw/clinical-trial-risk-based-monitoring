@@ -9,19 +9,6 @@ import numpy as np
 import plotly.express as px
 import datetime
 
-# Page setting
-st.set_page_config(layout="wide")
-
-with open('style.css') as f:
-    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-
-st.title('Risk-based Monitoring System')
-
-st.markdown("""
-This app performs simple risk monitoring for clinical trial!
-* **Python libraries:** base64, pandas, streamlit
-* **Data source:** [Wemedoo.com](https://www.wemedoo.com/)
-""")
 
 # load data
 def load_data():
@@ -68,17 +55,12 @@ def df_filter(message, df):
     st.info('Start: **%s** End: **%s**' % (slider_1, slider_2))
 
     start_date = datetime.datetime.strptime(str(slider_1), '%Y-%m-%d')
-    end_date = (datetime.datetime.strptime(str(slider_2), '%Y-%m-%d')) + datetime.timedelta(days=1)
+    end_date = (datetime.datetime.strptime(str(slider_2), '%Y-%m-%d'))
 
     delta = end_date - start_date   # returns timedelta
-
-    selected_date = []
-
-    for i in range(delta.days + 1):
-        day = start_date + datetime.timedelta(days=i)
-        selected_date.append(day)
-        
     
+        
+    selected_date = [start_date + datetime.timedelta(days=i) for i in range(delta.days + 1)]
 
     # Sidebar - Site selection
     sorted_unique_site = sorted(df.organization.unique())
@@ -96,17 +78,26 @@ def df_filter(message, df):
 
 if __name__ == '__main__':
 
+    # Page setting
+    st.set_page_config(layout="wide")
+
+    with open('style.css') as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+    st.title('Risk-based Monitoring System')
+
+    st.markdown("""
+    This app performs simple risk monitoring for clinical trial!
+    * **Python libraries:** base64, pandas, streamlit
+    * **Data source:** [Wemedoo.com](https://www.wemedoo.com/)
+    """)
+
     df = load_data()
     selected_df = df_filter('Move slider to filter dataframe', df)
     
     st.header('Display Query Stats of Selected Site(s)')
-    st.write('Data Dimension: ' + str(selected_df.shape[0]) + ' rows and ' + str(selected_df.shape[1]) + ' columns.')
-    st.dataframe(selected_df)
 
-    selected_df.to_csv('output.csv', index=False)
-    df = pd.read_csv('output.csv')
-
-    # Create three columns
+        # Create three columns
     col1,col2,col3 = st.beta_columns(3)
 
     with col1:
@@ -117,6 +108,15 @@ if __name__ == '__main__':
 
     with col3:
         st.header("An owl")
+
+        
+    st.write('Data Dimension: ' + str(selected_df.shape[0]) + ' rows and ' + str(selected_df.shape[1]) + ' columns.')
+    st.dataframe(selected_df)
+
+    selected_df.to_csv('output.csv', index=False)
+    df = pd.read_csv('output.csv')
+
+
 
 
 
